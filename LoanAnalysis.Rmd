@@ -1,0 +1,733 @@
+
+# Prosper Loan Data Exploration
+===============================================================================
+The project is aimed at doing exploratory data analysis on Prosper Loan Data . 
+This is a financial data related to loan browers , lenders , interest rate many
+more. Prosper.com is one of the leading peer to peer lending sites on the web
+today.
+===============================================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+library(ggplot2)
+library(knitr)
+library(dplyr)
+library(lubridate)
+library(forcats)
+library(descr)
+library(grid)
+library(gridExtra)
+library(memisc)
+library(scales)
+library(GGally)
+library(zoo)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE,}
+# Load the Data
+pd <- read.csv("prosperLoanData.csv")
+str(pd)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+theme_new <- theme_set(theme_minimal())
+theme_new + theme_update(
+                     plot.title = element_text(hjust = 0.5),
+                     axis.text.x = element_text(hjust = 0.5))
+
+bar_geo <- geom_bar(
+  fill="#45A3E6",
+  size = 1.5,
+  stat="identity"
+)
+```
+
+## Univariate Plots
+
+There are around 81 variables. Let us ask some question and explore the dataset 
+for better understanding.
+
+#### Plot 1 - What is the distribution of loan over years?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#convert ListingCreation date to Object of Date class
+pd$ListingCreationDate <- as.Date(pd$ListingCreationDate)
+
+# create new dataframe with year and frequency
+loan_dist <- as.data.frame(table(year(pd$ListingCreationDate)))
+colnames(loan_dist) <- c("Year", "NoOfLoans")
+
+#loan_dist
+ggplot(data=loan_dist, aes(x=Year, y=NoOfLoans)) +
+  theme_new+
+  bar_geo+
+  geom_text(aes(label=NoOfLoans), vjust=-0.3, size=2.5)+
+  ggtitle( "Loan Amount Distribution from 2005 - 2014" )
+```
+
+#### Plot 1 - Comments
+
+From the graph above the number of loans borrowed has incresed from 2005 - 2008. Then there is a drop in the number of loans offered. Again the loan number has been increasing from 2010 - 2013. But again there is a dip in 2014.
+
+#### Plot 2 - What is the range of loan amount being borrowred?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(pd$LoanOriginalAmount)
+```
+
+```{r}
+ggplot(pd, aes(LoanOriginalAmount)) +
+  geom_density(fill = "#45A3E6")+
+  geom_vline(xintercept = 8337, size = 1, colour = "#FF3721",
+               linetype = "dashed")+
+  ggtitle("Loan Amount Distribution")
+```
+
+####  Plot 2 - Comments
+
+The loan amount is highly skewed to the left, which means to say that most of 
+the loan is for small amount. The maximun loan amount borrowed is 35000 and minimum is 1000. The mean loan amount is 8337.
+
+
+#### Plot 3 - What are the differnet loan status values in the data set.Which loan status is hightly prevalent?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(pd$LoanStatus)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#Reordering the loan status
+pd$LoanStatus <- factor(pd$LoanStatus,
+                           levels =c( "Current","Completed",
+                                      "FinalPaymentInProgress",
+                                      "Chargedoff","Defaulted",
+                                      "Past Due (1-15 days)", 
+                                      "Past Due (16-30 days)",
+                                      "Past Due (31-60 days)", 
+                                      "Past Due (61-90 days)",
+                                      "Past Due (91-120 days)", 
+                                      "Past Due (>120 days)", 
+                                      "Cancelled")
+                        )
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#status <- as.data.frame(table(pd$LoanStatus)) 
+#colnames(status) <- c("LoanStatus", "NoOfLoans")
+#ggplot(status, aes(x=LoanStatus,y=NoOfLoans)) + 
+#  coord_flip()+
+#  geom_text(aes(label=NoOfLoans),vjust = -2.9, size=2.5)+
+#  ggtitle(" Loan Status Categories and Distribution ") + 
+#  xlab("Loan Status") + ylab("Number of Borrowers")+
+#  theme_replace(axis.text.x = element_text(angle = 90))+
+#  bar_geo
+
+ggplot(pd, aes(x=LoanStatus)) + 
+  geom_bar(fill="#45A3E6",size=2.5)+
+  coord_flip()+
+  ggtitle(" Loan Status Categories and Distribution ") + 
+  theme_new+
+  theme(plot.title = element_text(hjust = 0.5))+
+  xlab("Loan Status") + ylab("Number of Borrowers")
+  
+```
+
+####  Plot 3 - Comments
+
+Most of the loans are current. There are also some loans which are defaulted and chargedoff.
+
+#### Plot 4 -What term are the loans usually taken for?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+pdt <- as.data.frame(table(pd$Term)) 
+colnames(pdt) <- c("Term", "NoOfLoans")
+#pdt
+ggplot(data=pdt, aes(x=Term,y=NoOfLoans)) +
+  geom_text(aes(label=NoOfLoans), vjust=-0.3, size=2.5)+
+  theme_new+
+  ggtitle( "Loan Term Distribution" )+
+  bar_geo
+  
+
+```
+
+#### Plot 4 - Comments
+
+Prosper seems to offer loans for 12 , 36 or 60 months term.The most common being 36 months loan term.
+
+#### Plot 5 - Why do people take loan?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#Map the numerical category to named listing for better understanding
+pd$ListingCategory <- factor(pd$ListingCategory..numeric., 
+                             labels=c("Not Available", "Debt Consolidation", 
+                                      "Home Improvement", "Business", 
+                                      "Personal loan", "Student Use", "Auto", 
+                                      "Other", "Baby & Adoption", "Boat", 
+                                      "Cosmetic Procedures", "Engagement Ring",
+                                      "Green Loans", "Household Expenses", 
+                                      "Large Purchases", "Medical/Dental", 
+                                      "Motorcycle", "RV", "Taxes", "Vacation",
+                                      "Wedding Loans"))
+
+#pd$ListingCategory <- mapvalues(df$val,
+#                           from = c(1,2,3,4,5,6,7,8,9,10,
+#                                    11,12,13,14,15,16,17,18,19,20),
+#                           to = c("Not Available", "Debt Consolidation", 
+#                                      "Home Improvement", "Business", 
+#                                      "Personal loan", "Student Use", "Auto", 
+#                                      "Other", "Baby & Adoption", "Boat", 
+#                                      "Cosmetic Procedures", "Engagement #Ring","Green Loans", "Household Expenses", 
+#                                      "Large Purchases", "Medical/Dental", 
+#                                      "Motorcycle", "RV", "Taxes", "Vacation",
+#                                      "Wedding Loans"))
+
+
+cnt= count(pd, ListingCategory)
+#cnt
+ggplot(aes(x = ListingCategory,y = n), data = cnt) + 
+  theme_new+
+  theme_update(axis.text.x = element_text(angle = 90))+
+  ggtitle( " Loan Purpose " )+
+  xlab("Loan Listing Category")+
+  ylab("No of Loans")+
+  bar_geo
+
+```
+
+#### Plot 5 - Comments 
+
+The most common purpose to borrow loan from Prosper is for Debt Consolidation followed by other.
+
+#### Plot 6 - What is the distribution of credit score both upper range?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+summary(pd$CreditScoreRangeUpper)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+ggplot(data = pd, aes(CreditScoreRangeUpper))+
+  geom_histogram(binwidth = 25,fill="#45A3E6",size=2.5)+
+  scale_x_continuous(breaks = seq(200,900,50))+
+  xlab('Credit score')+
+  ylab('Count')+
+  ggtitle('Distributon of credit score upper range')+
+  theme_new+
+  theme_replace(axis.text.x = element_text(angle = 90)) 
+```
+
+#### Plot 7 - What is the distribution of credit score both lower range?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(pd$CreditScoreRangeLower)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = pd, aes(CreditScoreRangeLower))+
+  geom_histogram(binwidth = 25, fill="#45A3E6",size=2.5)+
+  scale_x_continuous(breaks = seq(200,900,50))+
+  theme_new+
+  xlab('Credit score')+
+  ylab('No Of Loans')+
+  ggtitle('Distribution of credit score lower range')+
+  theme_update(axis.text.x = element_text(angle = 90)) 
+  
+```
+
+#### Plot 6 , 7 - Comments
+
+The distribution of Credit score upper and lower range look almost normally distributed. They do have some outliers and NA(non available) data. Credit score
+is a inflencing factor for getting a better interest rate. Instead of 2 separate variables we can combine them into one and call it CreditScore.
+
+#### Plot 8 - Combine Upper and Lower Credit Score into one.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+pd <- pd %>% mutate(CreditScore = pd$CreditScoreRangeLower / 2 +
+                              pd$CreditScoreRangeUpper / 2)
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = pd, aes(pd$CreditScore))+
+  geom_histogram(binwidth = 25, fill="#45A3E6",size=2.5)+
+  scale_x_continuous(breaks = seq(300,900,50))+
+  theme_new+
+  xlab('Credit score')+
+  ylab('Count')+
+  ggtitle('Distribution of credit score')+
+  theme_update(axis.text.x = element_text(angle = 90)) 
+```
+```{r }
+summary(pd$CreditScore)
+```
+
+#### Plot 8 - Comments
+
+The Credit Score follows the same pattern as CreditScore Upper nad Lower Range of normal distribution. The mean Creditscore is 695.1
+
+#### Plot 9 - How are the borrowers APR and Rate distributed in the dataset?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+p1<-ggplot(aes(x=BorrowerAPR),data=pd)+
+  geom_histogram(binwidth = 0.01,fill="#45A3E6")+
+  theme_new+
+  scale_x_continuous(limits=c(0,0.5),breaks=seq(0,0.5,0.02))+
+  theme_update(axis.text.x = element_text(angle = 90))+
+  ggtitle('Distribution Borrower APR and Borrower Interest Rate')
+  
+p2<-ggplot(aes(x=BorrowerRate),data=pd)+
+  geom_histogram(binwidth = 0.01,fill="#45A3E6")+
+  theme_new+
+  scale_x_continuous(limits=c(0,0.5),breaks=seq(0,0.5,0.02))+
+  theme_update(axis.text.x = element_text(angle = 90))
+
+grid.arrange(p1,p2,ncol=1)
+
+summary(pd$BorrowerAPR)
+
+summary(pd$BorrowerRate)
+```
+
+#### Plot 9 - Comments
+
+The distribution of Borrower APR is almost normal with a mean rate of 0.21883
+The distribution of Borrower Interest Rate is almost normal with a mean rate of 0.1928.
+
+
+#### Plot 10 - What kind of ProsperScore rating have been given to the borrower?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = pd, aes(pd$ProsperScore))+
+  geom_histogram(binwidth = 1, fill = "#45A3E6")+
+  scale_x_continuous(breaks = seq(1,11,1))+
+  scale_y_continuous(breaks = seq(0,13000,1500))+
+  xlab('Prosper Score of Applicants')+
+  ylab('Total No of Loans')+
+  theme_new+
+  ggtitle('Prosper Score distribution')+
+  theme_update(axis.text.x = element_text(angle = 0))
+```
+
+#### Plot 10 - Comments
+
+Prosper score is a custom risk score built using historical Prosper data to 
+assess the risk of Prosper borrower listings. The output to Prosper users is a Prosper score which ranges from 1 to 11, with 11 being the best, or lowest risk, score. The worst, or highest risk, score, is a 1. In this dataset prosper Score looks normally distributed. With a mean score of 5.95 .Also to be noted there 
+are a number of rows with data NA(not available) this is because as stated in 
+the variable definition sheet the risk score is applicable only from 2009 
+onwards.
+
+#### Plot 11 - What is prosper rating. how is it distribution in thid dataset?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+qplot(x = ProsperRating..Alpha., 
+      data = subset(pd, !is.na(pd$ProsperRating..Alpha.)),
+      fill = I("#45A3E6")) +
+      scale_y_continuous(limits = c(0, 20000), breaks = seq(0, 20000, 4000)) +
+      scale_x_discrete(limits = c("AA", "A", "B", "C", "D", "E", "HR"))+
+      ggtitle('Prosper Rating distribution')+
+      theme_new+
+      theme_update(axis.text.x = element_text(angle = 0))
+
+```
+
+#### Plot 11 - Comments
+
+The Prosper Rating is proprietary system that allows prosper to maintain consistency when evaluating each loan application. Prosper Ratings allow investors to consider a loan’s level of risk because the rating represents an estimated average annualized estimated loss rate range. 
+
+#### Plot 12 - What is the emplyoment status of the borrowers like?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dt <- subset(pd, !(EmploymentStatus == ""))
+estatus= count(dt,  EmploymentStatus)
+#estatus
+
+ggplot(aes(x = EmploymentStatus ,y = n ), data = estatus) + 
+  theme_new+
+  theme_update(axis.text.x = element_text(angle = 90)) + 
+  geom_text(aes(label =n), vjust=-0.5) +
+  ylim(0,75000) +
+  xlab("Employment Status")+
+  ylab("No Of Loans")+
+  ggtitle(' Employment Status distribution ')+
+  bar_geo
+```
+
+#### Plot 12 - Comments
+
+About 67322 borrowers are employed. But i think part-time,full-time should belong to emplyoed category. It is interesting to know that even "Not employed " people get loan.
+
+#### Plot 13 - How does the Debt To Income ratio look like for the Prosper Loans?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(pd$DebtToIncomeRatio)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = DebtToIncomeRatio), 
+                                data = pd) +
+    geom_histogram(binwidth = 0.05,fill = I("#45A3E6")) +
+    scale_x_continuous(limits = c(0.0, 0.7), 
+                     breaks = seq(0.0, 0.6, 0.1))+
+    theme_new+
+    ggtitle(" Distribution of Debt To Income Ratio")
+```
+
+#### Plot 13 - Comments
+
+The debt to income ration is highly skewed to the left. The mean debttoincome ratio is 0.276.
+
+
+#### Plot 14 - What is the distribution of Income among the borrowers? 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(pd$StatedMonthlyIncome)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+ggplot(aes(x = StatedMonthlyIncome), 
+                                  data = pd) +
+    geom_histogram(binwidth = 1000, fill = I("#45A3E6")) +
+    scale_x_continuous(limits = c(0, 20000))+
+    theme_new+
+    ggtitle(" Distribution of Monthly Income")
+   
+```
+
+#### Plot 14 - Comments
+
+From the plot we can observe the income is skewed to the left. Very few 
+borrowers earn more than 10000. The mean monthly income is 5608.
+
+
+#### Plot 15 - How many loans originated by each quarter?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+pd$LoanOriginationQuarter <-as.yearqtr(pd$LoanOriginationQuarter,"Q%q %Y")
+pd$LoanOriginationQuarter <- factor(pd$LoanOriginationQuarter)
+summary(pd$LoanOriginationQuarter)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x=pd$LoanOriginationQuarter),data=pd)+
+  theme_new+
+  geom_bar(fill = "#45A3E6")+
+  xlab("Loan Originated by Quarter")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 1, hjust=1))+
+  ggtitle('Loan distribution by Quarters')
+```
+  
+#### Plot 13 - Comments
+
+Looks like proser laon data is from last quarter of 2005 until first quarter of 2014. The number of loans offere by prosper has increase gradually after the correction perios of 2009.
+https://en.wikipedia.org/wiki/Prosper_Marketplace
+
+
+## Univariate Analysis
+
+#### What is the structure of your dataset?
+
+The prosper loan data set consist of 113,937 loans and 81 variables. Most data is recorded between 2005 to 2014. Some of the variables include information about the loan such as the amount, rate, length, and status, and also information on the borrower, such as credit grade, income range, and employment status and so on.
+
+#### What is/are the main feature(s) of interest in your dataset?
+
+The dataset has 81 variables , in this section i am interested to understand the variable , look at their distribution and try to find some insights. For univariate analysis i have focused on the follwoing variables.
+ListingCreationDate
+Term
+ListingCategory..numeric.
+ProsperScore
+CreditScoreRangeUpper
+CreditScoreRangeLower
+LoanStatus
+LoanOriginalAmount
+BorrowerAPR
+BorrowerRate
+ProsperScore
+ProsperRating
+EmploymentStatus
+
+#### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+Based on my research about Prosper score i found that variables may also be interesting to anayse.
+CurrentDelinquencies
+StatedMonthlyIncome
+DebtToIncomeRatio
+https://www.prosper.com/plp/general-prosper_score/
+
+#### Did you create any new variables from existing variables in the dataset?
+
+Yes i created one variable called CreditScore by takin an average of CreditScoreRangeUpper and CreditScoreRangeLower. I also created variable called LoanOriginationQuarter using the zoo library.
+
+#### Of the features you investigated, were there any unusual distributions? 
+
+When analysisng the distribution of no of loans vsr years , a dip was observed around 2008-2009. 
+
+#### Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+The debt to income ratio was cut into bands to be able to analyse borrowers by debt to income ratio group.
+
+
+##Bivariate Plots
+
+#### Plot 16 - How does a credit score affect the prosper rating?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+by(pd$CreditScore, pd$ProsperRating..Alpha., summary)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = ProsperRating..Alpha., y = CreditScore,
+      fill = I("#45A3E6"), color = I("#506E86")), 
+      data = pd) +
+      theme_new+
+      geom_boxplot(lwd = 0.75, outlier.color = I("#FBB448"), outlier.shape = 1) +
+      scale_x_discrete(limits = c("HR", "E", "D", "C", "B", "A", "AA")) +
+      coord_cartesian(ylim = c(600, 950))+
+      ggtitle('Prosper Rating Vs Credit Score')
+     # theme_update(axis.text.x = element_text(angle = 90))
+```
+
+#### Plot 16 - Comments
+
+There is a clear indication as the credit score increase the Prosper rating also increases. As the credit score increases the Prosper Rating falls under AA catergory which stands for lower risk. 
+
+#### Plot 17 - How does credit score affect the Borrowers interest rate?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+summary(pd$CreditScore)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+ggplot(data = subset(pd, (pd$CreditScore > 300)), aes(x = CreditScore, y = BorrowerAPR))+
+  geom_jitter(alpha = 1/10)+
+  scale_x_continuous(breaks = seq(500,900,20))+
+  geom_smooth(method = 'lm')+
+  xlab('Credit Score of the Applicants')+
+  ylab('BorrowerAPR')+
+  ggtitle('BorrowerAPR vs CreditScore')
+  
+```
+
+#### Plot 17 - Comments 
+
+Borrowers APR and Credit Score have a negative corelation. The Borrower APR increases with increase in Credit Score.
+
+#### Plot 18 - How does the prosper score change based on Loan Amount.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = pd, aes(x = ProsperScore, y = LoanOriginalAmount))+
+  geom_line(stat = 'summary', fun.y = mean,color="#45A3E6")+
+  scale_x_continuous(breaks = seq(1,10,1))+
+  scale_y_continuous(breaks = seq(0,20000, 1000))+
+  xlab('ProsperScore for the loans')+
+  ylab('Mean requested loan amount')+
+  ggtitle('Prosper Score vs Mean requested Loan Amount')+
+  theme_new
+  #theme_update(axis.text.x = element_text(angle = 90))
+```
+
+### Plot 18 - Comments
+
+It is interesting to know that the prosper score is high for higher loan amount.
+
+### Plot 19 -Is the Prosperscore better for higher stated monthly income?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = pd, aes(x = ProsperScore, y = StatedMonthlyIncome))+
+  geom_line(stat = 'summary', fun.y = median,color="#45A3E6")+
+  scale_x_continuous(breaks = seq(1,10,1))+
+  xlab('Prosper Score')+
+  ylab('Median Monthly Income')+
+  ggtitle('Prosper Score vs Median Monthly Income')
+  
+```
+
+#### Plot 19 - Comments
+The monthly income is a very important factor which inflence the prosper score.
+From the plot above we can see prosper score increase with larger stated monthly income.
+
+#### Plot 20 - Does DebtToIncomeRation affect the BorrowerRate
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+ggplot(aes(x = DebtToIncomeRatio, y = BorrowerRate), data = pd) +
+  geom_point(alpha = 0.05, position = "jitter") +
+  stat_quantile() +
+  scale_x_continuous(
+    limits = c(0, quantile(pd$DebtToIncomeRatio, 0.99, na.rm = TRUE))) +
+  scale_y_continuous(
+    limits = c(0, quantile(pd$BorrowerRate, 0.99, na.rm = TRUE)))+
+  theme_new+
+  ggtitle('DebtToIncome Ratio vs Borrowe Rate')
+```
+
+#### Plot 20 - Comments
+
+The debt-to-income ratio is one way lenders, including mortgage lenders, measure an individual's ability to manage monthly payment and repay debts. So it is necssary to have a low debt to income ratio for better rate and the graph also shows us the borrower rate better rate when the debtTo income ratio is low.
+
+## Bivariate Analysis
+
+#### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+Some of the key observations are
+1) Credit score increase the Prosper rating also increases. As the credit score increases the Prosper Rating falls under AA catergory which stands for lower risk. 
+2) Prosper score is high for larger loan amount.
+
+
+#### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+1) Borrower rate better rate when the debtTo income ratio is low.
+2) Larger the stated monthly income btter is the prosper rate.
+
+#### What was the strongest relationship you found?
+
+Borrowers APR and Credit Score have a negative corelation. The Borrower APR increases with increase in Credit Score.
+
+## Multivariate Plots
+
+#### Plot 21 - How is prosper loan and APR distributed foe diffent emplyoment status?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+#Combine employed, part-time and full-time into one category (employed)
+pd$EmploymentCategory <- factor(pd$EmploymentStatus, 
+                         labels=c("NA", "Employed", "Employed", 
+                                  "NA","Not Employed", "Other", 
+                                  "Employed", "Retired", 
+                                  "Self-employed"))
+
+#rearranges employment status 
+pd$EmploymentCategory <- factor(pd$EmploymentCategory, 
+                         levels = c("Employed", "Self-employed", 
+                                    "Retired", "Not Employed", 
+                                    "Other", "NA"))
+  
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+ggplot(data = pd, aes(x = ProsperScore, y = BorrowerAPR))+
+  geom_line(aes(color = EmploymentCategory), stat = 'summary' , fun.y = mean)+
+  xlab("Prosper Score ")+
+  ylab("Mean APR ")+
+  theme_new+
+  ggtitle(' Mean APR vs ProsperScore based on employment status ')
+
+```
+
+#### Plot 21 - Comments
+
+In above plot it can be clearly seen Not Employed and Retired APR has been 
+steady and higher for prosper scores below six.
+
+#### Plot 22 - How does the borrower rate with credit score and prosper score?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+pd$ProsperRating <- factor(pd$ProsperRating..Alpha.,
+                    levels = c('AA','A','B','C','D','E','HR','NA'))
+rating <- c("HR","E","D","C","B","A","AA")
+
+ggplot(aes(x = CreditScore,
+           y = BorrowerAPR,
+           color = (ProsperRating)),
+      data = subset(pd, !is.na(BorrowerAPR) & ProsperRating %in% rating)) +
+  geom_jitter()+
+  xlim(0 , quantile(pd$CreditScore , 0.99, na.rm = T))+
+  scale_x_continuous(breaks = seq(0,800,100))+
+  scale_color_brewer( name = 'ProsperRating', direction = -1)+
+  theme_dark()
+  ggtitle(" BorrowerAPR VS Credit Score with colored Prosper Rating")
+
+```
+
+
+#### Plot 22 - Comments
+
+The loans high prosper score and credit score had a lower Borrower Rate. 
+From the above plot we can see the Prosper score of 7.5 and above and a credit score of 700 and above had a low borrower rate.
+
+
+## Multivariate Analysis
+
+#### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+The multivarite plots futher prove that prosper score and credit rate have a 
+very high inflence on the borrowers rate.
+
+#### Were there any interesting or surprising interactions between features?
+
+It is observed that empllyoment status had an influence on APR and credit score.
+Not Employed and Retired borrowers APR has been  higher for prosper scores below six. It is interesting to note  that self emplyoed managed to get better APR and prosper score.
+
+
+##Final Plots
+
+#### Plot 1
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = ProsperRating..Alpha., y = CreditScore,
+      fill = I("#F5F5F5"), color = I("#506E86")), 
+      data = pd) +
+      geom_boxplot(lwd = 0.75, outlier.color = I("#FBB448"), outlier.shape = 1) +
+      scale_x_discrete(limits = c("HR", "E", "D", "C", "B", "A", "AA")) +
+      coord_cartesian(ylim = c(600, 950))+
+      ggtitle('Prosper Rating Vs Credit Score')+
+      theme_new
+      #theme_update(axis.text.x = element_text(angle = 90))
+```
+
+#### Plot 1 - Comments
+In this plot it can be observed ProsperRating Increases with increase in the credit score. 
+
+#### Plot 2
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = pd, aes(x = ProsperScore, y = BorrowerAPR))+
+  geom_line(aes(color = EmploymentCategory), stat = 'summary' , fun.y = mean)+
+  xlab("Prosper Score for Applicants")+
+  ylab("Mean APR for Applicants")+
+  theme_new+
+  ggtitle('Mean APR vs ProsperScore based on employment status')
+  
+```
+
+#### Plot 2 - Comments
+
+The plot shows emplyoed borrower get higher prosperscore and also better APR . It can also be seen self-emplyoed borrowes also seem to get almost the same kind of prosper rating and APR value. A combination of other vaiables help to decide on the prosper score and APR.
+
+#### Plot 3
+
+```{r echo=FALSE, message=FALSE, warning=FALSE }
+ggplot(aes(x=pd$LoanOriginationQuarter),data=pd)+
+  geom_bar(fill = "#45A3E6")+
+  xlab("Loan Originated by Quarter")+
+  theme_new+
+  theme(axis.text.x = element_text(angle = 270, vjust = 0.5, hjust=1))+
+  ggtitle('Loan distribution by Quarters')
+```
+
+#### Plot 3 - Comments
+
+The plot above shows the distribution of loans over a time period of 2005- 2014.Most importantly it the trend the loans follow before and after 2009 Q2.
+We can observe for a given year the loan amount increase from first quarter to last quarter. 
+
+
+##Reflection
+
+#### About the Data
+
+This data set was a challenge mainly because of the number of variables. It 
+gave a good experience on how real wrold data is and since my knowledge on loans was limited i had to spend some time understanding the terms and also make decisions on what kind of questions to ask to explore this Prosper loan data.
+
+#### Challenges
+
+Working with ggplot2 to explore th variables was not easy. I had to iterate the code many times to get a satisfactory representations. The main area of 
+difficulty is choose the correct scale so the graph can represent the data better. Another chanllenge  was choosing the right graph type since the dataset has both categorical and quantitative values. 
+
+While testing the bivariate and multivarite plots some of the relationships was not as i expected for example - Borrowers APR and Credit Score has a negative corelation. The Borrower APR increases with increase in Credit Score. Atleast to my understanding i thought the borrower can get a lower APR with a good credit score rating. 
+
+#### Findings
+
+  I did manage to observe some interesting factors about indidvidual variables expecially i would like to mention the distribution of loan across the quarters gives a good overview of Prosper loan performance. This promted me to go look for the reason why there was a dip in loan sales during 2009. I also managed to find some key variable which influence the interest rate. I found the Prosper Score and Prosper Rating are key variables which affect the borrowers APR and interest rate to name some. 
+
+#### Future improvement
+
+After doing a lot of reading i understood there are many interesting questions to be askes and explored. This is just a small analysis presented here for the project requirements, I wish to further continue and explore the dataset especially i want to see distribution of loan across different states,
+which state perform well in paying the laon on time. Also looking at what king of loans investors prefer to invest in and what a re the key factors whaich help them in this process may be a good area of investigation moving forward.
+
+
+
+
+
+
